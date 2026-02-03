@@ -1,1 +1,0 @@
-#fastapi ko endpoints haru banaucha
