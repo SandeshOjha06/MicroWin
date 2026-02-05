@@ -18,7 +18,7 @@ async def stream_micro_wins(safe_instruction: str, session_id: int):
     # Gemini 2.0 Flash is the best balance of speed and intelligence
     # Note: Using generate_content_stream for the 5-second rule
     stream = client.models.generate_content_stream(
-        model='gemini-1.5-flash-8b', 
+        model='gemini-2.5-flash', 
         contents=prompt
     )
 
