@@ -1,22 +1,20 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from app.core.config import settings
 
-# SQLite file path (yo backend folder mah basxa)
-DATABASE_URL = "sqlite+aiosqlite:///./atomize.db"
+# Engine setup: Postgres uses 'postgresql+asyncpg'
+engine = create_async_engine(
+    settings.DATABASE_URL, 
+    echo=False,
+    # Postgres specific: prevents connection drop in cloud
+    pool_pre_ping=True 
+)
 
-# Engine create garne (Async support ko lagi)
-engine = create_async_engine(DATABASE_URL, echo=True)
-
-# Session factory (Database sanga kura garna)
-SessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=engine, 
     class_=AsyncSession, 
     expire_on_commit=False
 )
 
-Base = declarative_base()
-
-# Dependency: Check out "get_db" function later
 async def get_db():
-    async with SessionLocal() as session:
+    async with AsyncSessionLocal() as session:
         yield session
