@@ -10,6 +10,4 @@ def scrub_pii(text: str) -> str:
     for ent in doc.ents:
         if ent.label_ in ["PERSON", "GPE", "ORG"]:
             scrubbed_text = scrubbed_text.replace(ent.text, f"[{ent.label_}]")
-        
-    print(f"Masked Text: {scrubbed_text}")
     return scrubbed_text
