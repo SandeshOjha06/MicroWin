@@ -19,8 +19,22 @@ class TaskStreamChunk(BaseModel):
     current_step: MicroWin  # The specific step being streamed right now
 
 # Standard full response (for DB retrieval)
+class MicroWinRead(BaseModel):
+    id: int
+    step_order: int
+    action: str  # This will hold the DECRYPTED text
+    is_completed: bool
+
+    class Config:
+        from_attributes = True
+
 class TaskRead(BaseModel):
     id: int
-    original_goal: str
-    micro_wins: List[MicroWin]
-    model_config = ConfigDict(from_attributes=True)
+    goal: str    # This will hold the DECRYPTED text
+    is_completed: bool
+    micro_wins: List[MicroWinRead]
+
+    class Config:
+        from_attributes = True
+
+
