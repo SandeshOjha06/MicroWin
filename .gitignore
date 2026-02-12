@@ -1,4 +1,10 @@
 # Virtual environments
 backend/envir
 backend/.env
+backend/.venv
 
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.env
