@@ -8,3 +8,4 @@ pydantic-settings
 cryptography
 spacy
 python-dotenv
+passlib[bcrypt]
