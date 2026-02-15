@@ -8,16 +8,15 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
+    hashed_password = Column(String, nullable=True)  # Nullable for social login users
     
+    # OAuth2 provider tracking
+    auth_provider = Column(String, default="email")  # "email", "google", "facebook"
+    provider_id = Column(String, nullable=True)       # External OAuth user ID
+
     # --- The Neuro-Profile (Stored Encrypted) ---
-    # Example: "I need extra steps for cleaning", "Dense text is hard"
     encrypted_preferences = Column(String, nullable=True) 
-    
-    # Example: "Kitchen", "Socializing", "Work"
     encrypted_struggle_areas = Column(String, nullable=True)
-    
-    # Scale of 1-5 (How small should the steps be?)
     granularity_level = Column(Integer, default=3) 
 
     tasks = relationship("Task", back_populates="owner")

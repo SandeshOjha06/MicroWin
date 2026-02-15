@@ -5,14 +5,30 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 
 class Settings(BaseSettings):
-    GEMINI_API_KEY: str  # Update this name
+    GEMINI_API_KEY: str
     DATABASE_URL: str
-    DB_ENCRYPTION_KEY: str 
+    DB_ENCRYPTION_KEY: str
+
+    # JWT
+    JWT_SECRET_KEY: str = "microwin-super-secret-key-change-in-production-2024"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_MINUTES: int = 1440  # 24 hours
+
+    # OAuth2 — Google
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+
+    # OAuth2 — Facebook
+    FACEBOOK_APP_ID: str = ""
+    FACEBOOK_APP_SECRET: str = ""
+
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
         env_file=".env", 
         env_file_encoding="utf-8",
-        extra="ignore" # Prevents errors if there are extra variables in .env
+        extra="ignore"
     )
 
 settings = Settings()

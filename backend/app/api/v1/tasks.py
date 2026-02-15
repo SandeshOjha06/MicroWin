@@ -132,3 +132,25 @@ async def get_task_details(task_id: int, db: AsyncSession = Depends(get_db)):
             } for s in steps
         ]
     }
+
+
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a task and all its micro-wins (cascade)."""
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await db.delete(task)
+    await db.commit()
+    return None
+
+@router.patch("/microwins/{step_id}", status_code=200)
+async def update_microwin_status(step_id: int, is_completed: bool, db: AsyncSession = Depends(get_db)):
+    """Update the completion status of a specific micro-win step."""
+    step = await db.get(MicroWinModel, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail="Micro-win step not found")
+    
+    step.is_completed = is_completed
+    await db.commit()
+    return {"id": step.id, "is_completed": step.is_completed}

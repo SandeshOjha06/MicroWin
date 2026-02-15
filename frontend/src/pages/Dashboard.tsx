@@ -3,25 +3,54 @@ import { useNavigate } from "react-router-dom"
 import {
   Send,
   LogOut,
-  MessageSquare,
   Sparkles,
   Menu,
   X,
-  Target,
-  Zap,
-  TrendingUp,
   Sun,
   Moon,
+  Trash2,
+  Trophy,
+  Star,
+  PartyPopper,
+  Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { FontSwitcher } from "@/components/FontSwitcher"
+import { GammaPlayer } from "@/components/GammaPlayer"
+import { Mascot } from "@/components/Mascot"
+import { useAuth } from "@/contexts/AuthContext"
+import {
+  apiDecomposeStream,
+  apiGetUserTasks,
+  apiGetTaskDetails,
+  apiDeleteTask,
+  apiUpdateStepStatus,
+  type SidebarTask,
+  type TaskStep,
+} from "@/lib/api"
+import { fireConfetti } from "@/lib/confetti"
+import { playRandomMotivatingSound, playCompletionSound } from "@/lib/sounds"
 
 interface Message {
   role: "user" | "bot"
   content: string
+  isStep?: boolean
+  stepId?: number
 }
+
+const SUCCESS_MESSAGES = [
+  "Awesome job! 🌟",
+  "You're crushing it! 🚀",
+  "Way to go! 🎉",
+  "Superb! ✨",
+  "Level Up! 🆙",
+  "Fantastic! 🌈",
+  "You did it! 🏆",
+]
+
+type MascotMood = "idle" | "thinking" | "happy" | "celebrating"
 
 export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -29,9 +58,19 @@ export default function Dashboard() {
   const [isTyping, setIsTyping] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
+  const [sidebarTasks, setSidebarTasks] = useState<SidebarTask[]>([])
+  const [activeTaskId, setActiveTaskId] = useState<number | null>(null)
+
+  // Game/Mascot State
+  const [currentQuestSteps, setCurrentQuestSteps] = useState<TaskStep[]>([])
+  const [activeStepIndex, setActiveStepIndex] = useState<number>(0)
+  const [showReward, setShowReward] = useState(false)
+  const [mascotMood, setMascotMood] = useState<MascotMood>("idle")
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -39,109 +78,294 @@ export default function Dashboard() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, isTyping])
+  }, [messages, isTyping, showReward])
 
-  const handleSend = () => {
-    if (!input.trim()) return
-    const newMessage: Message = { role: "user", content: input }
-    setMessages((prev) => [...prev, newMessage])
+  useEffect(() => {
+    if (user?.id) {
+      apiGetUserTasks(user.id).then(setSidebarTasks).catch(() => { })
+    }
+  }, [user?.id])
+
+  // Reset mascot to idle after animations
+  useEffect(() => {
+    if (mascotMood === "happy") {
+      const timer = setTimeout(() => setMascotMood("idle"), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [mascotMood])
+
+  // Theme Config - Warm Brown Dark Mode
+  const theme = {
+    bg: darkMode ? "bg-[#2C241B]" : "bg-orange-50/30",
+    sidebar: darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100",
+    sidebarText: darkMode ? "text-orange-100/80" : "text-stone-600",
+    sidebarHover: darkMode ? "hover:bg-[#4A3C2F] hover:text-orange-50" : "hover:bg-orange-50 hover:text-stone-900",
+    navActive: darkMode ? "bg-[#d97706] text-white shadow-lg shadow-orange-900/20" : "bg-orange-500 text-white",
+    header: darkMode ? "bg-[#2C241B] border-[#5C4B3A]" : "bg-white border-orange-100",
+    headerText: darkMode ? "text-orange-50" : "text-stone-800",
+    headerSub: darkMode ? "text-orange-200/60" : "text-stone-500",
+    userBubble: darkMode ? "bg-[#d97706] text-white" : "bg-stone-800 text-white",
+    botBubble: darkMode ? "bg-[#3E3226] text-orange-50 border-[#5C4B3A]" : "bg-white text-stone-800 border-orange-100",
+    botAvatar: darkMode ? "bg-[#d97706]" : "bg-stone-900",
+    botAvatarIcon: "text-white",
+    inputWrap: darkMode ? "bg-[#3E3226] border-[#5C4B3A] focus-within:border-orange-500/50" : "bg-white border-orange-200 focus-within:border-orange-400",
+    inputField: darkMode ? "text-orange-50 placeholder:text-orange-200/30" : "text-stone-900 placeholder:text-stone-400",
+    emptyTitle: darkMode ? "text-orange-50" : "text-stone-800",
+    emptyText: darkMode ? "text-orange-200/50" : "text-stone-500",
+    emptyIcon: darkMode ? "bg-[#3E3226] text-orange-400" : "bg-orange-100 text-orange-500",
+    footerText: darkMode ? "text-orange-200/20" : "text-stone-400",
+    logoutHover: darkMode ? "hover:text-red-300 hover:bg-red-900/20" : "hover:text-red-600 hover:bg-red-50",
+    typingDot: darkMode ? "bg-orange-400" : "bg-stone-400",
+    logoBox: darkMode ? "bg-[#d97706]" : "bg-stone-900",
+    logoIcon: "text-white",
+    logoText: darkMode ? "text-orange-50" : "text-stone-900",
+    logoSub: darkMode ? "text-orange-200/60" : "text-stone-500",
+    sepColor: darkMode ? "bg-[#5C4B3A]" : "bg-orange-100",
+    sendBtn: darkMode ? "bg-[#d97706] text-white hover:bg-orange-600" : "bg-stone-900 text-white hover:bg-stone-700",
+    sendDisabled: darkMode ? "disabled:bg-[#3E3226] disabled:text-orange-200/20" : "disabled:bg-stone-100 disabled:text-stone-300",
+    deleteBtn: darkMode ? "text-orange-200/20 hover:text-red-400" : "text-stone-300 hover:text-red-500",
+
+    // Game Specific
+    questCard: darkMode ? "bg-[#3E3226] border-[#d97706]/30" : "bg-white border-orange-200",
+    questBtn: "bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/20 transform hover:scale-105 transition-all duration-200",
+    questBtnDisabled: "bg-gray-300 cursor-not-allowed opacity-50",
+  }
+
+  // Handle "I DID IT!" click
+  const handleStepComplete = async (stepId: number) => {
+    // 1. Fire rewards
+    const isLastStep = activeStepIndex === currentQuestSteps.length - 1;
+
+    if (isLastStep) {
+      fireConfetti()
+      playCompletionSound()
+      setMascotMood("celebrating")
+    } else {
+      playRandomMotivatingSound() // Varied sounds
+      setMascotMood("happy")
+    }
+
+    setShowReward(true)
+
+    // 2. Optimistic update
+    const updatedSteps = [...currentQuestSteps]
+    updatedSteps[activeStepIndex].is_completed = true
+    setCurrentQuestSteps(updatedSteps)
+
+    // 3. API Call
+    try {
+      await apiUpdateStepStatus(stepId, true)
+    } catch {
+      // rollback if needed
+    }
+
+    // 4. Wait a bit longer for the user to enjoy the moment
+    setTimeout(() => {
+      setShowReward(false)
+      setActiveStepIndex(prev => prev + 1)
+    }, 2500)
+  }
+
+  const handleSend = async () => {
+    if (!input.trim() || !user) return
+    const userMessage = input.trim()
+
+    // Reset game state
+    setMessages([{ role: "user", content: userMessage }])
+    setCurrentQuestSteps([])
+    setActiveStepIndex(0)
+    setMascotMood("thinking")
     setInput("")
     setIsTyping(true)
-    setTimeout(() => {
+
+    try {
+      const res = await apiDecomposeStream(userMessage, user.id)
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error("No stream reader")
+
+      const decoder = new TextDecoder()
+      const collectedSteps: TaskStep[] = []
+      let stepCounter = 1
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split("\n")
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.current_step?.action) {
+                collectedSteps.push({
+                  id: data.current_step.step_id || stepCounter,
+                  action: data.current_step.action,
+                  is_completed: false,
+                  order: stepCounter
+                })
+                stepCounter++
+              } else if (data.sidebar_title) {
+                apiGetUserTasks(user.id).then(setSidebarTasks).catch(() => { })
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+      }
+
       setIsTyping(false)
-      setMessages((prev) => [
+      setMascotMood("idle")
+
+      if (collectedSteps.length > 0) {
+        setMessages(prev => [
+          ...prev,
+          { role: "bot", content: `Quest Accepted! 🛡️\nI've broken this mission into ${collectedSteps.length} steps.` }
+        ])
+        setCurrentQuestSteps(collectedSteps)
+        const firstUndone = collectedSteps.findIndex(s => !s.is_completed)
+        setActiveStepIndex(firstUndone === -1 ? 0 : firstUndone)
+      } else {
+        setMessages(prev => [
+          ...prev,
+          { role: "bot", content: "I couldn't create a quest from that. Try rephrasing your goal!" },
+        ])
+      }
+    } catch {
+      setIsTyping(false)
+      setMascotMood("idle")
+      setMessages(prev => [
         ...prev,
         {
           role: "bot",
-          content:
-            "I'll help you break that down into micro-wins! This will connect to the FastAPI backend soon.",
+          content: "Connection failed. Please check your internet or try again!",
         },
       ])
-    }, 1200)
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("condition")
-    navigate("/login")
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
     }
   }
 
-  const quickPrompts = [
-    { icon: <Target className="w-4 h-4" />, text: "Break down a goal" },
-    { icon: <Zap className="w-4 h-4" />, text: "Daily micro-wins" },
-    { icon: <TrendingUp className="w-4 h-4" />, text: "Track my progress" },
-  ]
+  const loadTask = async (taskId: number) => {
+    try {
+      setMascotMood("thinking")
+      const task = await apiGetTaskDetails(taskId)
+      setActiveTaskId(taskId)
+      setMessages([{ role: "user", content: task.goal }])
 
-  // Theme classes
-  const theme = {
-    bg: darkMode ? "bg-[#1a1b4b]" : "bg-zinc-50", // Vibrant deep blue for dark mode
-    sidebar: darkMode ? "bg-[#1e1b4b]/95 border-white/10" : "bg-white border-zinc-200",
-    sidebarText: darkMode ? "text-indigo-100" : "text-zinc-600",
-    sidebarHover: darkMode ? "hover:bg-white/10 hover:text-white" : "hover:bg-zinc-100 hover:text-black",
-    navActive: darkMode ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "bg-black text-white",
-    header: darkMode ? "bg-[#1a1b4b] border-white/10" : "bg-white border-zinc-200",
-    headerText: darkMode ? "text-white" : "text-black",
-    headerSub: darkMode ? "text-indigo-200" : "text-zinc-500",
-    userBubble: darkMode ? "bg-indigo-500 text-white" : "bg-black text-white",
-    botBubble: darkMode ? "bg-[#312e81] text-indigo-50 border-indigo-700/50" : "bg-white text-zinc-800 border-zinc-200",
-    botAvatar: darkMode ? "bg-indigo-500" : "bg-black",
-    botAvatarIcon: darkMode ? "text-white" : "text-white",
-    inputWrap: darkMode ? "bg-[#1e1b4b] border-indigo-500/30 focus-within:border-indigo-400" : "bg-white border-zinc-200 focus-within:border-zinc-400",
-    inputField: darkMode ? "text-white placeholder:text-indigo-300" : "text-black placeholder:text-zinc-400",
-    emptyTitle: darkMode ? "text-white" : "text-black",
-    emptyText: darkMode ? "text-indigo-200" : "text-zinc-500",
-    emptyIcon: darkMode ? "bg-[#312e81] text-indigo-300" : "bg-zinc-100 text-zinc-400",
-    footerText: darkMode ? "text-indigo-300/60" : "text-zinc-400",
-    logoutHover: darkMode ? "hover:text-red-300 hover:bg-red-900/20" : "hover:text-red-600 hover:bg-red-50",
-    typingDot: darkMode ? "bg-indigo-400" : "bg-zinc-400",
-    logoBox: darkMode ? "bg-indigo-500" : "bg-black",
-    logoIcon: darkMode ? "text-white" : "text-white",
-    logoText: darkMode ? "text-white" : "text-black",
-    logoSub: darkMode ? "text-indigo-200" : "text-zinc-500",
-    sepColor: darkMode ? "bg-indigo-500/20" : "",
-    sendBtn: darkMode ? "bg-indigo-500 text-white hover:bg-indigo-600" : "bg-black text-white hover:bg-zinc-800",
-    sendDisabled: darkMode ? "disabled:bg-[#1e1b4b] disabled:text-indigo-500/40" : "disabled:bg-zinc-200 disabled:text-zinc-400",
+      setCurrentQuestSteps(task.steps)
+
+      const firstUndone = task.steps.findIndex(s => !s.is_completed)
+      const isComplete = firstUndone === -1 && task.steps.length > 0;
+
+      setActiveStepIndex(firstUndone === -1 ? task.steps.length : firstUndone)
+      setMascotMood(isComplete ? "celebrating" : "idle")
+
+      setMessages(prev => [
+        ...prev,
+        { role: "bot", content: `Resuming Quest: ${task.title || "Untitled"}` }
+      ])
+    } catch {
+      setMascotMood("idle")
+    }
+  }
+
+  const deleteTask = async (taskId: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await apiDeleteTask(taskId)
+      setSidebarTasks((prev) => prev.filter((t) => t.id !== taskId))
+
+      // Fix: If we just deleted the active task, clear the screen
+      if (activeTaskId === taskId) {
+        newChat()
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const newChat = () => {
+    setMessages([])
+    setActiveTaskId(null)
+    setCurrentQuestSteps([])
+    setActiveStepIndex(0)
+    setMascotMood("idle")
+    if (inputRef.current) inputRef.current.focus()
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate("/login")
   }
 
   return (
-    <div className={`flex h-screen ${theme.bg} overflow-hidden transition-colors duration-300`}>
+    <div className={`flex h-screen ${theme.bg} overflow-hidden transition-colors duration-500 font-verdana`}>
       {/* Sidebar */}
       <aside
-        className={`${sidebarOpen ? "w-60" : "w-0"
+        className={`${sidebarOpen ? "w-64" : "w-0"
           } transition-all duration-300 ease-in-out ${theme.sidebar} border-r flex flex-col relative z-20 overflow-hidden`}
       >
-        <div className="flex-shrink-0 p-5 min-w-[15rem]">
-          <div className="flex items-center gap-2.5 mb-5">
-            <div className={`w-8 h-8 ${theme.logoBox} rounded-lg flex items-center justify-center`}>
-              <Sparkles className={`w-4 h-4 ${theme.logoIcon}`} />
+        <div className="flex-shrink-0 p-5 min-w-[16rem]">
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`w-10 h-10 ${theme.logoBox} rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20`}>
+              <Sparkles className={`w-5 h-5 ${theme.logoIcon}`} />
             </div>
             <div>
-              <h1 className={`text-base font-bold ${theme.logoText}`}>μ-Wins</h1>
-              <p className={`text-[10px] ${theme.logoSub} leading-none`}>Micro-win assistant</p>
+              <h1 className={`text-lg font-bold ${theme.logoText}`}>μ-Wins</h1>
+              <p className={`text-[11px] ${theme.logoSub} font-medium`}>Quest Assistant</p>
             </div>
           </div>
 
+          {/* Professional New Quest Button */}
+          <button
+            onClick={newChat}
+            className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl ${activeTaskId === null ? theme.navActive : `${theme.sidebarText} ${theme.sidebarHover} border border-transparent hover:border-orange-200`
+              } text-sm font-bold transition-all mb-4`}
+          >
+            <Plus className="w-4 h-4" />
+            New Quest
+          </button>
+
           <Separator className={`mb-4 ${theme.sepColor}`} />
 
-          <nav className="space-y-1">
-            <button className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg ${theme.navActive} text-sm font-medium transition-all`}>
-              <MessageSquare className="w-4 h-4" />
-              Chat
-            </button>
-          </nav>
+          {sidebarTasks.length > 0 && (
+            <div className="space-y-1 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
+              <p className={`text-[10px] font-bold ${theme.logoSub} uppercase tracking-widest mb-2 px-2`}>
+                Mission Log
+              </p>
+              {sidebarTasks.map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => loadTask(task.id)}
+                  className={`group w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-xs font-medium ${activeTaskId === task.id
+                    ? theme.navActive
+                    : `${theme.sidebarText} ${theme.sidebarHover}`
+                    }`}
+                >
+                  <Trophy className={`w-3.5 h-3.5 flex-shrink-0 ${activeTaskId === task.id ? "text-white" : "text-amber-500"}`} />
+                  <span className="truncate flex-1">{task.title}</span>
+                  <button
+                    onClick={(e) => deleteTask(task.id, e)}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${theme.deleteBtn}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className={`mt-auto p-5 border-t ${darkMode ? "border-white/5" : "border-zinc-200"} min-w-[15rem]`}>
+        <div className={`mt-auto p-5 border-t ${theme.header} min-w-[16rem]`}>
+          {user && (
+            <p className={`text-[11px] ${theme.logoSub} mb-3 truncate px-1 font-medium`}>
+              {user.email}
+            </p>
+          )}
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg ${theme.sidebarText} ${theme.logoutHover} transition-all text-sm`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg ${theme.sidebarText} ${theme.logoutHover} transition-all text-sm font-medium`}
           >
             <LogOut className="w-4 h-4" />
             Log out
@@ -149,137 +373,159 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main Area */}
       <main className="flex-1 flex flex-col relative z-10 min-w-0">
-        {/* Header */}
-        <header className={`flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b ${theme.header} transition-colors duration-300`}>
+        <header className={`flex-shrink-0 flex items-center gap-4 px-6 py-4 border-b ${theme.header} transition-colors duration-300`}>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`h-8 w-8 ${theme.sidebarText} ${theme.sidebarHover}`}
+            className={`h-9 w-9 ${theme.sidebarText} ${theme.sidebarHover}`}
           >
-            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
-          <div>
-            <h2 className={`text-sm font-semibold ${theme.headerText}`}>AI Assistant</h2>
-            <p className={`text-[11px] ${theme.headerSub}`}>Break goals into micro-wins</p>
+
+          <div className="flex-1">
+            {currentQuestSteps.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="h-2 flex-1 max-w-xs bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${(activeStepIndex / currentQuestSteps.length) * 100}%` }}
+                  />
+                </div>
+                <span className={`text-xs font-bold ${theme.headerSub}`}>
+                  {Math.round((activeStepIndex / currentQuestSteps.length) * 100)}%
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-              <span className={`text-[11px] ${theme.headerSub}`}>Online</span>
-            </div>
+          <div className="flex items-center gap-3">
+            {/* New Gamma Player */}
+            <GammaPlayer darkMode={darkMode} />
 
             <FontSwitcher />
-
-            {/* Dark mode toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-lg ${theme.sidebarText} ${theme.sidebarHover} transition-all`}
-              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              className={`p-2.5 rounded-xl ${theme.sidebarText} ${theme.sidebarHover} transition-all`}
             >
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
         </header>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-6">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center animate-fade-in">
-              <div className={`w-14 h-14 ${theme.emptyIcon} rounded-2xl flex items-center justify-center mb-4`}>
-                <Sparkles className="w-7 h-7" />
-              </div>
-              <h3 className={`text-lg font-bold ${theme.emptyTitle} mb-1`}>Welcome to μ-Wins</h3>
-              <p className={`${theme.emptyText} text-center max-w-sm mb-6 text-sm`}>
-                Tell me what you want to achieve, and I'll help you break it into small, actionable steps.
-              </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {quickPrompts.map((prompt, i) => (
-                  <Button
-                    key={i}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setInput(prompt.text)
-                      inputRef.current?.focus()
-                    }}
-                    className={`gap-2 ${darkMode
-                      ? "bg-transparent border-white/10 text-zinc-400 hover:bg-white/5 hover:text-white"
-                      : "bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-black"
-                      }`}
-                  >
-                    {prompt.icon}
-                    {prompt.text}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-2xl mx-auto space-y-3">
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
-                >
-                  {msg.role === "bot" && (
-                    <div className={`w-6 h-6 ${theme.botAvatar} rounded-md flex items-center justify-center mr-2 mt-0.5 flex-shrink-0`}>
-                      <Sparkles className={`w-3 h-3 ${theme.botAvatarIcon}`} />
-                    </div>
-                  )}
-                  <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === "user"
-                    ? `${theme.userBubble} rounded-br-md`
-                    : `${theme.botBubble} rounded-bl-md border`
-                    }`}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
+        {/* Chat / Game Area - Centered Layout */}
+        <div className="flex-1 overflow-y-auto px-6 py-8 flex items-center justify-center">
+          <div className="w-full max-w-5xl mx-auto flex gap-6 md:gap-10 flex-col-reverse md:flex-row items-center md:items-start justify-center">
 
-              {isTyping && (
-                <div className="flex justify-start animate-fade-in">
-                  <div className={`w-6 h-6 ${theme.botAvatar} rounded-md flex items-center justify-center mr-2 mt-0.5 flex-shrink-0`}>
-                    <Sparkles className={`w-3 h-3 ${theme.botAvatarIcon}`} />
-                  </div>
-                  <div className={`${theme.botBubble} rounded-2xl rounded-bl-md border px-4 py-3 flex gap-1`}>
-                    <span className={`w-1.5 h-1.5 ${theme.typingDot} rounded-full animate-bounce-dot`} />
-                    <span className={`w-1.5 h-1.5 ${theme.typingDot} rounded-full animate-bounce-dot-delay-1`} />
-                    <span className={`w-1.5 h-1.5 ${theme.typingDot} rounded-full animate-bounce-dot-delay-2`} />
-                  </div>
+            {/* Mascot Column (Left on desktop, Bottom on mob) */}
+            <div className="flex-shrink-0 flex flex-col items-center mt-4 md:mt-0">
+              <Mascot mood={mascotMood} className="w-32 h-32 md:w-56 md:h-56 transform hover:scale-105 transition-transform" />
+              {mascotMood === "thinking" && (
+                <span className={`mt-2 text-xs font-bold uppercase tracking-widest ${theme.headerSub} animate-pulse`}>
+                  Thinking...
+                </span>
+              )}
+            </div>
+
+            {/* Content Column */}
+            <div className="flex-1 w-full space-y-6 max-w-2xl">
+              {messages.length === 0 && (
+                <div className="text-center py-10 animate-fade-in">
+                  <h2 className={`text-2xl font-bold ${theme.emptyTitle} mb-3`}>
+                    Welcome back!
+                  </h2>
+                  <p className={`${theme.emptyText} mb-8 text-base`}>
+                    I'm Polo! Ready to help you crush some tasks?
+                  </p>
                 </div>
               )}
-              <div ref={messagesEndRef} />
+
+              {/* Chat Log */}
+              <div className="space-y-4 mb-8">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}>
+                    <div className={`max-w-[100%] md:max-w-[85%] px-5 py-3.5 rounded-2xl text-[15px] leading-relaxed whitespace-pre-line shadow-sm border-2 ${msg.role === "user"
+                      ? `${theme.userBubble} border-transparent rounded-br-md`
+                      : `${theme.botBubble} rounded-bl-md`
+                      }`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Active Quest Step Card */}
+              {!isTyping && currentQuestSteps.length > 0 && (
+                <div className="animate-fade-in-up space-y-4">
+
+                  {activeStepIndex < currentQuestSteps.length ? (
+                    <div className={`relative p-8 rounded-3xl border-4 ${theme.questCard} shadow-xl transform transition-all`}>
+                      <div className="absolute -top-4 left-6 md:left-8 bg-amber-500 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
+                        Step {activeStepIndex + 1} of {currentQuestSteps.length}
+                      </div>
+
+                      <h3 className={`text-2xl md:text-3xl font-bold text-center mb-8 mt-4 leading-tight ${theme.emptyTitle}`}>
+                        {currentQuestSteps[activeStepIndex].action}
+                      </h3>
+
+                      <div className="flex justify-center">
+                        {!showReward ? (
+                          <button
+                            onClick={() => handleStepComplete(currentQuestSteps[activeStepIndex].id)}
+                            className={`flex items-center gap-3 px-8 py-5 rounded-2xl text-xl font-bold ${theme.questBtn}`}
+                          >
+                            <Star className="w-7 h-7 fill-white" />
+                            I DID IT!
+                          </button>
+                        ) : (
+                          <div className="px-8 py-5 rounded-2xl bg-green-500 text-white font-bold text-xl animate-bounce flex items-center gap-3 shadow-lg shadow-green-500/30">
+                            <PartyPopper className="w-7 h-7" />
+                            {SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)]}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    // All Done State
+                    <div className={`p-10 rounded-3xl border-4 border-green-200 bg-green-50 text-center animate-fade-in shadow-xl`}>
+                      <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                        <Trophy className="w-12 h-12 text-green-600" />
+                      </div>
+                      <h2 className="text-3xl font-bold text-green-800 mb-2">Quest Complete!</h2>
+                      <p className="text-green-600 mb-8 text-lg font-medium">You crushed every step. Polo is proud of you!</p>
+                      <Button onClick={newChat} className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-6 h-auto rounded-xl">
+                        Start New Quest
+                      </Button>
+                    </div>
+                  )}
+
+                </div>
+              )}
             </div>
-          )}
+          </div>
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="flex-shrink-0 px-5 pb-5 pt-2">
-          <div className="max-w-2xl mx-auto">
-            <div className={`flex gap-2 items-end ${theme.inputWrap} border rounded-xl p-1.5 transition-all duration-300`}>
-              <Input
-                ref={inputRef}
-                type="text"
-                className={`border-0 shadow-none focus-visible:ring-0 text-sm bg-transparent ${theme.inputField}`}
-                placeholder="Type your goal or message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <Button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                size="icon"
-                className={`h-8 w-8 rounded-lg flex-shrink-0 ${theme.sendBtn} ${theme.sendDisabled}`}
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-            <p className={`text-center text-[10px] ${theme.footerText} mt-2`}>
-              μ-Wins AI can make mistakes. Consider checking important information.
-            </p>
+        {/* Input Area */}
+        <div className="flex-shrink-0 px-6 pb-6 pt-2">
+          <div className={`max-w-4xl mx-auto flex gap-3 p-2 rounded-2xl border-2 transition-all ${theme.inputWrap}`}>
+            <Input
+              ref={inputRef}
+              className={`flex-1 border-0 bg-transparent text-base focus-visible:ring-0 px-4 py-2 ${theme.inputField}`}
+              placeholder="Type your next big goal..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+            />
+            <Button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className={`h-12 w-12 rounded-xl flex-shrink-0 ${theme.sendBtn} ${theme.sendDisabled}`}
+            >
+              <Send className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       </main>
