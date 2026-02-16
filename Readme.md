@@ -367,10 +367,4 @@ curl http://localhost:8000/api/v1/tasks/health
 
 ---
 
-## License
-
-Built with love for the hackathon. MIT License.
-
----
-
 Big goals. Micro wins. Start winning today.
