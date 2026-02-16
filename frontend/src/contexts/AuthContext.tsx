@@ -10,7 +10,8 @@ import {
     apiLogin,
     apiSignup,
     apiGetMe,
-    apiOAuthCallback,
+    apiVerifyGoogleToken,
+
     type UserData,
 } from "@/lib/api";
 
@@ -19,11 +20,9 @@ interface AuthContextType {
     token: string | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
-    signup: (email: string, password: string) => Promise<void>;
-    handleOAuthCallback: (
-        provider: "google" | "facebook",
-        code: string
-    ) => Promise<void>;
+    signup: (email: string, password: string, fullName?: string) => Promise<void>;
+    handleOAuthCallback: (accessToken: string) => Promise<void>;
+
     logout: () => void;
 }
 
@@ -70,20 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.user);
     };
 
-    const signup = async (email: string, password: string) => {
-        const res = await apiSignup(email, password);
+    const signup = async (email: string, password: string, fullName?: string) => {
+        const res = await apiSignup(email, password, fullName);
         saveToken(res.access_token);
         setUser(res.user);
     };
 
-    const handleOAuthCallback = async (
-        provider: "google" | "facebook",
-        code: string
-    ) => {
-        const res = await apiOAuthCallback(provider, code);
+    const handleOAuthCallback = async (accessToken: string) => {
+        const res = await apiVerifyGoogleToken(accessToken);
         saveToken(res.access_token);
         setUser(res.user);
     };
+
 
     const logout = () => {
         localStorage.removeItem("token");

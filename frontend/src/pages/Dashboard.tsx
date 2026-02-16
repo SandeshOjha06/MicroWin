@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { Logo } from "@/components/Logo"
 import {
   Send,
   LogOut,
-  Sparkles,
+
+  Sliders,
   Menu,
   X,
   Sun,
@@ -12,7 +14,8 @@ import {
   Trophy,
   Star,
   PartyPopper,
-  Plus
+  Plus,
+  Check
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +23,8 @@ import { Separator } from "@/components/ui/separator"
 import { FontSwitcher } from "@/components/FontSwitcher"
 import { GammaPlayer } from "@/components/GammaPlayer"
 import { Mascot } from "@/components/Mascot"
+import { SettingsModal } from "@/components/SettingsModal"
+import { WelcomeModal } from "@/components/WelcomeModal"
 import { useAuth } from "@/contexts/AuthContext"
 import {
   apiDecomposeStream,
@@ -27,6 +32,7 @@ import {
   apiGetTaskDetails,
   apiDeleteTask,
   apiUpdateStepStatus,
+  apiUpdateProfile,
   type SidebarTask,
   type TaskStep,
 } from "@/lib/api"
@@ -57,9 +63,15 @@ export default function Dashboard() {
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(true)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false)
   const [sidebarTasks, setSidebarTasks] = useState<SidebarTask[]>([])
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null)
+
+  // Name Editing State
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState("")
 
   // Game/Mascot State
   const [currentQuestSteps, setCurrentQuestSteps] = useState<TaskStep[]>([])
@@ -83,8 +95,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.id) {
       apiGetUserTasks(user.id).then(setSidebarTasks).catch(() => { })
+
+      // Check if user has a name
+      if (!user.full_name) {
+        setIsWelcomeOpen(true)
+      }
     }
-  }, [user?.id])
+  }, [user?.id, user?.full_name])
 
   // Reset mascot to idle after animations
   useEffect(() => {
@@ -299,6 +316,30 @@ export default function Dashboard() {
     navigate("/login")
   }
 
+  const handleNameSave = async () => {
+    if (!editedName.trim() || !user) return
+    try {
+      await apiUpdateProfile(user.id, { full_name: editedName.trim() })
+      // Reload page to refresh context (simplified approach)
+      window.location.reload()
+    } catch {
+      // ignore
+    } finally {
+      setIsEditingName(false)
+    }
+  }
+
+  const getDisplayName = () => {
+    if (user?.full_name) return user.full_name
+    if (user?.email) {
+      // Smarter fallback: remove numbers, capitalize
+      const namePart = user.email.split('@')[0].replace(/[0-9]/g, '')
+      if (namePart) return namePart.charAt(0).toUpperCase() + namePart.slice(1)
+      return "Friend"
+    }
+    return "Friend"
+  }
+
   return (
     <div className={`flex h-screen ${theme.bg} overflow-hidden transition-colors duration-500 font-verdana`}>
       {/* Sidebar */}
@@ -306,56 +347,53 @@ export default function Dashboard() {
         className={`${sidebarOpen ? "w-64" : "w-0"
           } transition-all duration-300 ease-in-out ${theme.sidebar} border-r flex flex-col relative z-20 overflow-hidden`}
       >
-        <div className="flex-shrink-0 p-5 min-w-[16rem]">
-          <div className="flex items-center gap-3 mb-6">
-            <div className={`w-10 h-10 ${theme.logoBox} rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20`}>
-              <Sparkles className={`w-5 h-5 ${theme.logoIcon}`} />
-            </div>
-            <div>
-              <h1 className={`text-lg font-bold ${theme.logoText}`}>μ-Wins</h1>
-              <p className={`text-[11px] ${theme.logoSub} font-medium`}>Quest Assistant</p>
-            </div>
+        <div className="flex-shrink-0 px-5 pt-5 pb-2 min-w-[16rem] flex flex-col items-center">
+          <div className="h-24 w-full flex items-center justify-center overflow-hidden">
+            <Logo className="h-full w-auto object-contain" darkMode={darkMode} />
           </div>
-
-          {/* Professional New Quest Button */}
-          <button
-            onClick={newChat}
-            className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl ${activeTaskId === null ? theme.navActive : `${theme.sidebarText} ${theme.sidebarHover} border border-transparent hover:border-orange-200`
-              } text-sm font-bold transition-all mb-4`}
-          >
-            <Plus className="w-4 h-4" />
-            New Quest
-          </button>
-
-          <Separator className={`mb-4 ${theme.sepColor}`} />
-
-          {sidebarTasks.length > 0 && (
-            <div className="space-y-1 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
-              <p className={`text-[10px] font-bold ${theme.logoSub} uppercase tracking-widest mb-2 px-2`}>
-                Mission Log
-              </p>
-              {sidebarTasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => loadTask(task.id)}
-                  className={`group w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-xs font-medium ${activeTaskId === task.id
-                    ? theme.navActive
-                    : `${theme.sidebarText} ${theme.sidebarHover}`
-                    }`}
-                >
-                  <Trophy className={`w-3.5 h-3.5 flex-shrink-0 ${activeTaskId === task.id ? "text-white" : "text-amber-500"}`} />
-                  <span className="truncate flex-1">{task.title}</span>
-                  <button
-                    onClick={(e) => deleteTask(task.id, e)}
-                    className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${theme.deleteBtn}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
+
+
+        {/* Professional New Quest Button */}
+        <button
+          onClick={newChat}
+          className={`mx-4 w-auto flex items-center gap-2.5 px-4 py-3 rounded-xl ${activeTaskId === null ? theme.navActive : `${theme.sidebarText} ${theme.sidebarHover} border border-transparent hover:border-orange-200`
+            } text-sm font-bold transition-all mb-4`}
+
+        >
+          <Plus className="w-4 h-4" />
+          New Quest
+        </button>
+
+        <Separator className={`mb-4 ${theme.sepColor}`} />
+
+        {sidebarTasks.length > 0 && (
+          <div className="space-y-1 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
+            <p className={`text-[10px] font-bold ${theme.logoSub} uppercase tracking-widest mb-2 px-2`}>
+              Mission Log
+            </p>
+            {sidebarTasks.map((task) => (
+              <div
+                key={task.id}
+                onClick={() => loadTask(task.id)}
+                className={`group w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-xs font-medium ${activeTaskId === task.id
+                  ? theme.navActive
+                  : `${theme.sidebarText} ${theme.sidebarHover}`
+                  }`}
+              >
+                <Trophy className={`w-3.5 h-3.5 flex-shrink-0 ${activeTaskId === task.id ? "text-white" : "text-amber-500"}`} />
+                <span className="truncate flex-1">{task.title}</span>
+                <button
+                  onClick={(e) => deleteTask(task.id, e)}
+                  className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${theme.deleteBtn}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
 
         <div className={`mt-auto p-5 border-t ${theme.header} min-w-[16rem]`}>
           {user && (
@@ -371,10 +409,11 @@ export default function Dashboard() {
             Log out
           </button>
         </div>
-      </aside>
+      </aside >
 
       {/* Main Area */}
       <main className="flex-1 flex flex-col relative z-10 min-w-0">
+
         <header className={`flex-shrink-0 flex items-center gap-4 px-6 py-4 border-b ${theme.header} transition-colors duration-300`}>
           <Button
             variant="ghost"
@@ -405,7 +444,15 @@ export default function Dashboard() {
             {/* New Gamma Player */}
             <GammaPlayer darkMode={darkMode} />
 
-            <FontSwitcher />
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className={`p-2.5 rounded-xl ${theme.sidebarText} ${theme.sidebarHover} transition-all`}
+              title="Preferences"
+            >
+              <Sliders className="w-5 h-5" />
+            </button>
+
+            <FontSwitcher darkMode={darkMode} />
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2.5 rounded-xl ${theme.sidebarText} ${theme.sidebarHover} transition-all`}
@@ -415,13 +462,28 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* Settings Modal */}
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          user={user}
+          darkMode={darkMode}
+        />
+
+        <WelcomeModal
+          isOpen={isWelcomeOpen}
+          onClose={() => setIsWelcomeOpen(false)}
+          user={user}
+          darkMode={darkMode}
+        />
+
         {/* Chat / Game Area - Centered Layout */}
         <div className="flex-1 overflow-y-auto px-6 py-8 flex items-center justify-center">
           <div className="w-full max-w-5xl mx-auto flex gap-6 md:gap-10 flex-col-reverse md:flex-row items-center md:items-start justify-center">
 
             {/* Mascot Column (Left on desktop, Bottom on mob) */}
             <div className="flex-shrink-0 flex flex-col items-center mt-4 md:mt-0">
-              <Mascot mood={mascotMood} className="w-32 h-32 md:w-56 md:h-56 transform hover:scale-105 transition-transform" />
+              <Mascot mood={mascotMood} className="w-40 h-40 md:w-72 md:h-72 transform hover:scale-105 transition-transform" />
               {mascotMood === "thinking" && (
                 <span className={`mt-2 text-xs font-bold uppercase tracking-widest ${theme.headerSub} animate-pulse`}>
                   Thinking...
@@ -432,13 +494,55 @@ export default function Dashboard() {
             {/* Content Column */}
             <div className="flex-1 w-full space-y-6 max-w-2xl">
               {messages.length === 0 && (
-                <div className="text-center py-10 animate-fade-in">
-                  <h2 className={`text-2xl font-bold ${theme.emptyTitle} mb-3`}>
-                    Welcome back!
-                  </h2>
-                  <p className={`${theme.emptyText} mb-8 text-base`}>
+                <div className="text-center py-10 animate-fade-in relative">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    {isEditingName ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editedName}
+                          onChange={(e) => setEditedName(e.target.value)}
+                          className={`text-3xl md:text-5xl font-bold h-auto py-2 px-4 w-auto min-w-[300px] text-center ${theme.emptyTitle} bg-transparent border-b-2 border-orange-400 rounded-none focus-visible:ring-0`}
+                          autoFocus
+                          onKeyDown={(e) => e.key === "Enter" && handleNameSave()}
+                          onBlur={() => setIsEditingName(false)}
+                        />
+                        <Button size="sm" onClick={handleNameSave} className="bg-green-500 hover:bg-green-600 text-white rounded-full p-2 h-10 w-10">
+                          <Check className="w-5 h-5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h2
+                        className={`text-3xl md:text-5xl font-bold ${theme.emptyTitle} flex items-center gap-2`}
+                      >
+                        Welcome back, {getDisplayName()}!
+                      </h2>
+                    )}
+
+                  </div>
+                  <p className={`${theme.emptyText} mb-8 text-lg md:text-xl`}>
                     I'm Polo! Ready to help you crush some tasks?
                   </p>
+
+
+
+                  {/* Quick Stats / Overview */}
+                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto mb-8">
+                    <div className={`p-4 rounded-xl border ${darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100"} text-center`}>
+                      <p className={`text-2xl font-bold ${darkMode ? "text-orange-400" : "text-orange-500"}`}>
+                        {sidebarTasks.length}
+                      </p>
+                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>Active Quests</p>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100"} text-center`}>
+                      <p className={`text-2xl font-bold ${darkMode ? "text-green-400" : "text-green-500"}`}>
+                        {new Date().getDate()}
+                      </p>
+                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>
+                        {new Date().toLocaleString('default', { month: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
               )}
 
@@ -528,7 +632,7 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   )
 }

@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
 import {
-    Sparkles,
     Puzzle,
     ArrowRight,
     CheckCircle2,
-    Trophy,
+
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FontSwitcher } from "@/components/FontSwitcher"
+import { Logo } from "@/components/Logo"
+
 
 const fadeUp = {
     hidden: { opacity: 0, y: 15 },
@@ -64,14 +65,18 @@ export default function LandingPage() {
             <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                     <Link to="/" className="flex items-center gap-3 group">
-                        <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-all duration-300">
-                            <Trophy className="w-6 h-6 text-primary-foreground" />
+                        <div className="flex items-center justify-center transition-all duration-300">
+                            <Logo className="h-14 w-auto object-contain" />
                         </div>
-                        <span className="text-xl font-bold tracking-tight text-foreground/90">μ-Wins</span>
+
+
+
+
                     </Link>
                     <div className="flex items-center gap-3">
-                        <FontSwitcher />
+                        <FontSwitcher darkMode={false} />
                         <Button variant="ghost" asChild className="text-muted-foreground hover:text-foreground">
+
                             <Link to="/login">Sign in</Link>
                         </Button>
                     </div>

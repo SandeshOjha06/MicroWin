@@ -1,27 +1,28 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { Sparkles } from "lucide-react";
 
 export default function AuthCallback() {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+
     const { handleOAuthCallback } = useAuth();
     const [error, setError] = useState("");
 
     useEffect(() => {
-        const code = searchParams.get("code");
-        const state = searchParams.get("state"); // "google" or "facebook"
+        // Parse hash: #access_token=...&token_type=Bearer&expires_in=...
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get("access_token");
 
-        if (!code || !state) {
-            setError("Missing auth parameters");
+        if (!accessToken) {
+            setError("No access token found");
             setTimeout(() => navigate("/login"), 2000);
             return;
         }
 
-        const provider = state as "google" | "facebook";
-
-        handleOAuthCallback(provider, code)
+        handleOAuthCallback(accessToken)
             .then(() => navigate("/dashboard", { replace: true }))
             .catch((err) => {
                 setError(err.message || "Authentication failed");
@@ -29,6 +30,7 @@ export default function AuthCallback() {
             });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
 
     return (
         <div className="min-h-screen bg-background flex items-center justify-center px-4">

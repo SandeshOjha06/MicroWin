@@ -146,11 +146,38 @@ async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.patch("/microwins/{step_id}", status_code=200)
 async def update_microwin_status(step_id: int, is_completed: bool, db: AsyncSession = Depends(get_db)):
-    """Update the completion status of a specific micro-win step."""
+    """
+    Update the completion status of a specific micro-win step.
+    Also updates the parent Task's is_completed status if all steps are finished.
+    """
+    # 1. Fetch the step
     step = await db.get(MicroWinModel, step_id)
     if not step:
         raise HTTPException(status_code=404, detail="Micro-win step not found")
     
+    # 2. Update status
     step.is_completed = is_completed
+
+    # 3. Check if ALL steps for this task are now completed
+    # We fetch all steps to verify
+    result = await db.execute(
+        select(MicroWinModel).where(MicroWinModel.task_id == step.task_id)
+    )
+    all_steps = result.scalars().all()
+
+    # The 'step' object in 'all_steps' shares the same instance as our 'step' variable
+    # due to SQLAlchemy's identity map, so it already has is_completed=True/False set above.
+    all_done = all(s.is_completed for s in all_steps)
+
+    # 4. Update Parent Task
+    parent_task = await db.get(Task, step.task_id)
+    if parent_task:
+        parent_task.is_completed = all_done
+
     await db.commit()
-    return {"id": step.id, "is_completed": step.is_completed}
+    
+    return {
+        "id": step.id, 
+        "is_completed": step.is_completed,
+        "task_completed": parent_task.is_completed if parent_task else False
+    }

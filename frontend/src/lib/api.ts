@@ -35,6 +35,7 @@ async function request<T>(
 export interface UserData {
     id: number;
     email: string;
+    full_name: string | null;
     preferences: string | null;
     struggle_areas: string | null;
     granularity_level: number;
@@ -59,11 +60,12 @@ export async function apiLogin(
 
 export async function apiSignup(
     email: string,
-    password: string
+    password: string,
+    fullName?: string
 ): Promise<TokenResponse> {
     return request<TokenResponse>("/auth/signup", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, full_name: fullName }),
     });
 }
 
@@ -72,19 +74,43 @@ export async function apiGetMe(): Promise<UserData> {
 }
 
 /** Exchange an OAuth code for a JWT via the backend */
-export async function apiOAuthCallback(
-    provider: "google" | "facebook",
-    code: string
+export async function apiVerifyGoogleToken(
+    accessToken: string
 ): Promise<TokenResponse> {
-    return request<TokenResponse>(
-        `/auth/${provider}/callback?code=${encodeURIComponent(code)}`
-    );
+    return request<TokenResponse>("/auth/google/verify-token", {
+        method: "POST",
+        body: JSON.stringify({ access_token: accessToken }),
+    });
 }
 
+
 /** Get the OAuth login redirect URL */
-export function getOAuthLoginUrl(provider: "google" | "facebook"): string {
-    return `${API_BASE}/auth/${provider}/login`;
+/** Get the OAuth login redirect URL for Implicit Flow */
+export function getOAuthLoginUrl(provider: "google"): string {
+    // We construct the URL on the client to avoid backend dependency calls for simple redirects
+    if (provider === "google") {
+        // Ideally we should use the VITE_ env var.
+        // For now, let's assume we use the VITE_GOOGLE_CLIENT_ID
+        const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+
+        const options = {
+            redirect_uri: `${window.location.origin}/auth/callback`,
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
+            access_type: "online",
+            response_type: "token",
+            prompt: "consent",
+            scope: [
+                "https://www.googleapis.com/auth/userinfo.profile",
+                "https://www.googleapis.com/auth/userinfo.email",
+            ].join(" "),
+            state: "google",
+        };
+        const qs = new URLSearchParams(options).toString();
+        return `${rootUrl}?${qs}`;
+    }
+    return "";
 }
+
 
 // ─── Tasks API ───────────────────────────────────────────────
 export interface SidebarTask {
@@ -136,6 +162,13 @@ export async function apiGetTaskDetails(taskId: number): Promise<TaskDetails> {
     return request<TaskDetails>(`/tasks/${taskId}`);
 }
 
+export async function apiUpdateProfile(userId: number, data: { full_name?: string }): Promise<UserData> {
+    return request<UserData>(`/users/profile/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
+}
+
 export async function apiDeleteTask(taskId: number): Promise<void> {
     await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: "DELETE",
@@ -144,7 +177,7 @@ export async function apiDeleteTask(taskId: number): Promise<void> {
 }
 
 export async function apiUpdateStepStatus(stepId: number, isCompleted: boolean): Promise<void> {
-    await request<void>(`/microwins/${stepId}?is_completed=${isCompleted}`, {
+    await request<void>(`/tasks/microwins/${stepId}?is_completed=${isCompleted}`, {
         method: "PATCH",
     });
 }

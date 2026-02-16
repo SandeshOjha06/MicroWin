@@ -81,6 +81,9 @@ async def update_neuro_profile(
     if profile_in.granularity_level is not None:
         user.granularity_level = profile_in.granularity_level
 
+    if profile_in.full_name is not None:
+        user.full_name = profile_in.full_name
+
     await db.commit()
     await db.refresh(user)
     return user

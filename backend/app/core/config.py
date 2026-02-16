@@ -16,11 +16,7 @@ class Settings(BaseSettings):
 
     # OAuth2 — Google
     GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
 
-    # OAuth2 — Facebook
-    FACEBOOK_APP_ID: str = ""
-    FACEBOOK_APP_SECRET: str = ""
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"

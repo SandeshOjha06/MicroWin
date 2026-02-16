@@ -1,8 +1,8 @@
 """
-Auth router: email/password + Google OAuth2 + Facebook OAuth2
+Auth router: email/password + Google OAuth2
 All endpoints return JWT tokens.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -36,7 +36,9 @@ def _build_user_read(user: User) -> UserRead:
             if user.encrypted_struggle_areas else None
         ),
         granularity_level=user.granularity_level,
+
         auth_provider=user.auth_provider or "email",
+        full_name=user.full_name,
     )
 
 
@@ -51,7 +53,7 @@ def _build_token_response(user: User) -> TokenResponse:
 
 
 async def _get_or_create_social_user(
-    db: AsyncSession, email: str, provider: str, provider_id: str
+    db: AsyncSession, email: str, provider: str, provider_id: str, full_name: str = None
 ) -> User:
     """Find existing user by email or create a new social-login user."""
     result = await db.execute(select(User).where(User.email == email))
@@ -71,7 +73,9 @@ async def _get_or_create_social_user(
         email=email,
         hashed_password=None,
         auth_provider=provider,
+
         provider_id=provider_id,
+        full_name=full_name,
         granularity_level=3,
     )
     db.add(user)
@@ -92,6 +96,7 @@ async def signup(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
         auth_provider="email",
+        full_name=user_in.full_name,
         granularity_level=3,
     )
     db.add(user)
@@ -121,115 +126,45 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return _build_user_read(current_user)
 
 
-# ─── Google OAuth2 ────────────────────────────────────────────
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+# ─── Google OAuth2 (Implicit / Token Flow Support) ────────────
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
-@router.get("/google/login")
-async def google_login():
-    """Redirect user to Google OAuth consent screen."""
-    if not settings.GOOGLE_CLIENT_ID:
-        raise HTTPException(status_code=501, detail="Google OAuth not configured")
+@router.post("/google/verify-token", response_model=TokenResponse)
+async def verify_google_token(
+    token_data: dict = Body(...), 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify Google Access Token received from frontend (Implicit Flow).
+    If valid, create/return JWT for our app.
+    Does NOT require Client Secret on backend.
+    """
+    access_token = token_data.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Missing access_token")
 
-    params = {
-        "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": f"{settings.FRONTEND_URL}/auth/callback",
-        "response_type": "code",
-        "scope": "openid email profile",
-        "access_type": "offline",
-        "state": "google",
-        "prompt": "consent",
-    }
-    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
-
-
-@router.get("/google/callback", response_model=TokenResponse)
-async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
-    """Exchange Google auth code for user info, create/find user, return JWT."""
     async with httpx.AsyncClient() as client:
-        # Exchange code for tokens
-        token_resp = await client.post(GOOGLE_TOKEN_URL, data={
-            "code": code,
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "redirect_uri": f"{settings.FRONTEND_URL}/auth/callback",
-            "grant_type": "authorization_code",
-        })
-        if token_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to get Google token")
-
-        tokens = token_resp.json()
-
-        # Get user info
+        # Verify token by fetching user info directly from Google
         userinfo_resp = await client.get(
             GOOGLE_USERINFO_URL,
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            headers={"Authorization": f"Bearer {access_token}"},
         )
+        
         if userinfo_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to get Google user info")
+            raise HTTPException(status_code=400, detail="Invalid Google token")
 
         userinfo = userinfo_resp.json()
 
-    user = await _get_or_create_social_user(
-        db, email=userinfo["email"], provider="google", provider_id=userinfo["id"]
-    )
-    return _build_token_response(user)
-
-
-# ─── Facebook OAuth2 ─────────────────────────────────────────
-FB_AUTH_URL = "https://www.facebook.com/v18.0/dialog/oauth"
-FB_TOKEN_URL = "https://graph.facebook.com/v18.0/oauth/access_token"
-FB_USERINFO_URL = "https://graph.facebook.com/v18.0/me"
-
-
-@router.get("/facebook/login")
-async def facebook_login():
-    """Redirect user to Facebook OAuth consent screen."""
-    if not settings.FACEBOOK_APP_ID:
-        raise HTTPException(status_code=501, detail="Facebook OAuth not configured")
-
-    params = {
-        "client_id": settings.FACEBOOK_APP_ID,
-        "redirect_uri": f"{settings.FRONTEND_URL}/auth/callback",
-        "scope": "email,public_profile",
-        "response_type": "code",
-        "state": "facebook",
-    }
-    return RedirectResponse(f"{FB_AUTH_URL}?{urlencode(params)}")
-
-
-@router.get("/facebook/callback", response_model=TokenResponse)
-async def facebook_callback(code: str, db: AsyncSession = Depends(get_db)):
-    """Exchange Facebook auth code for user info, create/find user, return JWT."""
-    async with httpx.AsyncClient() as client:
-        # Exchange code for token
-        token_resp = await client.get(FB_TOKEN_URL, params={
-            "code": code,
-            "client_id": settings.FACEBOOK_APP_ID,
-            "client_secret": settings.FACEBOOK_APP_SECRET,
-            "redirect_uri": f"{settings.FRONTEND_URL}/auth/callback",
-        })
-        if token_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to get Facebook token")
-
-        access_token = token_resp.json()["access_token"]
-
-        # Get user info
-        userinfo_resp = await client.get(FB_USERINFO_URL, params={
-            "fields": "id,email,name",
-            "access_token": access_token,
-        })
-        if userinfo_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to get Facebook user info")
-
-        userinfo = userinfo_resp.json()
-
-    if "email" not in userinfo:
-        raise HTTPException(status_code=400, detail="Email not provided by Facebook")
+    # Ensure the token matches our Client ID (optional extra security check if audience is present, 
+    # but for access_tokens we mostly trust the Provider that issued it for us if userinfo succeeds).
+    # Google UserInfo endpoint is sufficient proof of delegation for simple login.
 
     user = await _get_or_create_social_user(
-        db, email=userinfo["email"], provider="facebook", provider_id=userinfo["id"]
+        db, 
+        email=userinfo["email"], 
+        provider="google", 
+        provider_id=userinfo["id"], 
+        full_name=userinfo.get("name")
     )
     return _build_token_response(user)

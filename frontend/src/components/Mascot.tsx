@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 
 type Mood = "idle" | "thinking" | "happy" | "celebrating"
@@ -9,11 +9,54 @@ interface MascotProps {
 }
 
 export function Mascot({ mood, className = "" }: MascotProps) {
+    // Local state to override props for random animations
+    // If the parent passes "idle", we can sometimes override it with "happy" or "thinking"
+    // If the parent passes a specific mood (like "celebrating"), we respect it.
+    const [internalMood, setInternalMood] = useState<Mood>(mood);
+
+    // Sync internal mood with prop mood when prop changes
+    useEffect(() => {
+        setInternalMood(mood);
+    }, [mood]);
+
+    // 1. GREETING WAVE ON LOAD
+    useEffect(() => {
+        // Only wave if starting in idle
+        if (mood === "idle") {
+            setInternalMood("happy");
+            const timer = setTimeout(() => {
+                setInternalMood("idle");
+            }, 2000); // Wave for 2 seconds
+            return () => clearTimeout(timer);
+        }
+    }, []); // Run once on mount
+
+    // 2. RANDOM INTERACTIVE ACTIONS (Boredom implementation)
+    useEffect(() => {
+        if (mood !== "idle") return; // Only do random things if supposedly idle
+
+        const interval = setInterval(() => {
+            const random = Math.random();
+            if (random > 0.7) {
+                // 30% chance to do something
+                const action = Math.random() > 0.5 ? "thinking" : "happy";
+                setInternalMood(action);
+
+                // Go back to idle after a bit
+                setTimeout(() => {
+                    setInternalMood("idle");
+                }, 2000);
+            }
+        }, 10000); // Check every 10 seconds
+
+        return () => clearInterval(interval);
+    }, [mood]);
+
     // Simple "Polar Bear" using geometric shapes and framer-motion for life
 
     // Mood-based variants
     const headVariants = {
-        idle: { y: [0, -2, 0], rotate: [0, 1, 0, -1, 0], transition: { duration: 4, repeat: Infinity, ease: "easeInOut" } },
+        idle: { y: [0, -2, 0], rotate: [0, 1, 0, -1, 0], transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const } },
         thinking: { rotate: 5, y: 2, transition: { duration: 0.5 } },
         happy: { y: [0, -5, 0], rotate: [0, -5, 5, 0], transition: { duration: 0.5, repeat: 2 } },
         celebrating: { y: [0, -8, 0], transition: { duration: 0.4, repeat: Infinity } }
@@ -32,6 +75,9 @@ export function Mascot({ mood, className = "" }: MascotProps) {
         happy: { rotate: [0, 45, 0], transition: { duration: 0.5, repeat: 2 } }, // Wave
         celebrating: { rotate: [0, 120, 90], x: [0, -5, 0], transition: { duration: 0.2, repeat: Infinity, repeatType: "reverse" as const } } // Clap
     }
+
+    // Use internalMood for rendering
+    const currentMood = internalMood;
 
     return (
         <div className={`relative w-40 h-40 ${className}`}>
@@ -52,17 +98,17 @@ export function Mascot({ mood, className = "" }: MascotProps) {
                 />
 
                 {/* Left Arm (Behind) */}
-                <motion.g variants={armLeftVariants} animate={mood} style={{ originX: 0.9, originY: 0.1 }}>
+                <motion.g variants={armLeftVariants} animate={currentMood} style={{ originX: 0.9, originY: 0.1 }}>
                     <path d="M60 140 C40 140, 40 170, 60 170 L70 150 Z" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
                 </motion.g>
 
                 {/* Right Arm (Behind) */}
-                <motion.g variants={armRightVariants} animate={mood} style={{ originX: 0.1, originY: 0.1 }}>
+                <motion.g variants={armRightVariants} animate={currentMood} style={{ originX: 0.1, originY: 0.1 }}>
                     <path d="M140 140 C160 140, 160 170, 140 170 L130 150 Z" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
                 </motion.g>
 
                 {/* Head Group */}
-                <motion.g variants={headVariants} animate={mood}>
+                <motion.g variants={headVariants} animate={currentMood}>
                     {/* Ears */}
                     <circle cx="75" cy="85" r="12" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
                     <circle cx="125" cy="85" r="12" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
@@ -76,12 +122,12 @@ export function Mascot({ mood, className = "" }: MascotProps) {
                     <circle cx="100" cy="106" r="3" fill="#1E293B" /> {/* Nose Tip */}
 
                     {/* Eyes */}
-                    {mood === "thinking" ? (
+                    {currentMood === "thinking" ? (
                         <>
                             <circle cx="85" cy="95" r="2" fill="#1E293B" />
                             <line x1="110" y1="92" x2="120" y2="98" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" /> {/* Squint */}
                         </>
-                    ) : mood === "happy" || mood === "celebrating" ? (
+                    ) : currentMood === "happy" || currentMood === "celebrating" ? (
                         <>
                             <path d="M82 95 Q86 92 90 95" fill="none" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" /> {/* Happy Eye L */}
                             <path d="M110 95 Q114 92 118 95" fill="none" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" /> {/* Happy Eye R */}
@@ -95,7 +141,7 @@ export function Mascot({ mood, className = "" }: MascotProps) {
                     )}
 
                     {/* Mouth */}
-                    {mood === "happy" || mood === "celebrating" ? (
+                    {currentMood === "happy" || currentMood === "celebrating" ? (
                         <path d="M95 116 Q100 122 105 116" fill="none" stroke="#1E293B" strokeWidth="1.5" strokeLinecap="round" />
                     ) : (
                         <path d="M97 118 L103 118" fill="none" stroke="#1E293B" strokeWidth="1.5" strokeLinecap="round" />
@@ -107,16 +153,7 @@ export function Mascot({ mood, className = "" }: MascotProps) {
 
                 </motion.g>
 
-                {/* Scarf (Color changes based on mood/theme?) */}
-                <motion.g animate={mood} variants={{
-                    celebrating: { y: 2 }, // slightly lower to avoid face
-                    idle: { y: 0 },
-                    happy: { y: 0 },
-                    thinking: { y: 0 }
-                }}>
-                    <path d="M80 135 Q100 150 120 135 L120 145 Q100 160 80 145 Z" fill="#F59E0B" />
-                    <path d="M110 140 L115 160 L125 160 L120 140 Z" fill="#F59E0B" />
-                </motion.g>
+
             </svg>
         </div>
     )
