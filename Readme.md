@@ -1,4 +1,4 @@
-# MicroWin 🧠⚡
+# MicroWin
 
 ### Big Goals. Micro Wins.
 
