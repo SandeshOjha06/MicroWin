@@ -1,6 +1,22 @@
 version: "3.8"
 
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: microwin
+      POSTGRES_PASSWORD: microwin
+      POSTGRES_DB: microwin
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microwin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     ports:
@@ -9,4 +25,11 @@ services:
       - ./backend/.env
     environment:
       - FRONTEND_URL=http://localhost:8000
+      - DATABASE_URL=postgresql+asyncpg://microwin:microwin@db:5432/microwin
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  pgdata:
