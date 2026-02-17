@@ -36,10 +36,10 @@ def test_decompose_stream():
         print(f"Headers: {dict(response.headers)}")
         
         if response.status_code != 200:
-            print(f"❌ Error: {response.text}")
+            print(f"Error: {response.text}")
             return False
         
-        print("\n📥 Streaming Response:")
+        print("\nStreaming Response:")
         print("-" * 50)
         
         step_count = 0
@@ -53,12 +53,12 @@ def test_decompose_stream():
                         try:
                             step_data = json.loads(json_str)
                             step_count += 1
-                            print(f"\n✅ Step {step_count}:")
+                            print(f"\n Step {step_count}:")
                             print(f"   - ID: {step_data.get('step_id')}")
                             print(f"   - Action: {step_data.get('action')}")
                             print(f"   - Completed: {step_data.get('is_completed')}")
                         except json.JSONDecodeError as e:
-                            print(f"⚠️  Failed to parse JSON: {e}")
+                            print(f"Failed to parse JSON: {e}")
                             print(f"   Raw: {json_str}")
         
         except Exception as e:
@@ -66,16 +66,16 @@ def test_decompose_stream():
             return False
         
         print(f"\n{'='*50}")
-        print(f"✅ Test Passed! Received {step_count} steps")
+        print(f"Test Passed! Received {step_count} steps")
         return True
         
     except requests.exceptions.ConnectionError:
-        print(f"❌ Connection Error: Cannot connect to {BASE_URL}")
+        print(f"Connection Error: Cannot connect to {BASE_URL}")
         print("   Make sure to start the server first:")
         print("   cd backend && uvicorn main:app --reload")
         return False
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return False
 
 def test_validation():
@@ -95,7 +95,7 @@ def test_validation():
     if response.status_code == 422:
         print("✅ Validation working (rejected short instruction)")
     else:
-        print(f"❌ Expected 422, got {response.status_code}")
+        print(f"Expected 422, got {response.status_code}")
     
     # Test with too long instruction
     print("\n2️⃣  Testing with instruction too long (> 500 chars):")
@@ -106,12 +106,12 @@ def test_validation():
     )
     print(f"Status: {response.status_code}")
     if response.status_code == 422:
-        print("✅ Validation working (rejected long instruction)")
+        print("Validation working (rejected long instruction)")
     else:
-        print(f"❌ Expected 422, got {response.status_code}")
+        print(f" Expected 422, got {response.status_code}")
 
 if __name__ == "__main__":
-    print("\n🚀 microWin Backend Test Suite")
+    print("\n microWin Backend Test Suite")
     print("="*50)
     
     # Run tests
@@ -119,8 +119,8 @@ if __name__ == "__main__":
     test_validation()
     
     if success:
-        print("\n✨ All tests passed! Backend is working correctly.")
+        print("\nAll tests passed! Backend is working correctly.")
         sys.exit(0)
     else:
-        print("\n❌ Tests failed. Check the errors above.")
+        print("\nTests failed. Check the errors above.")
         sys.exit(1)
