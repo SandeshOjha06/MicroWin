@@ -357,13 +357,7 @@ curl http://localhost:8000/api/v1/tasks/health
 
 ---
 
-## Judging Criteria Mapping
 
-- **Technical Execution (30%)** — Streaming SSE, real-time latency metering, async PostgreSQL, Fernet-encrypted storage, multi-stage Docker build
-- **Neuro-Inclusive UX (25%)** — 4 accessible fonts (incl. OpenDyslexic and Lexend), single-task view, muted palettes, animated mascot, gamification sounds
-- **AI Granularity (20%)** — Neuro-profile-personalized prompts, adjustable granularity (1–5), sensory-grounded action steps, PII masking
-- **Innovation (15%)** — spaCy NER PII masking before LLM, streak gamification, Gamma Wave binaural beat player, animated Polo mascot
-- **Feasibility (10%)** — One-command Docker deployment, complete auth (JWT + OAuth), full CRUD, comprehensive README
 
 ---
 
