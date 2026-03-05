@@ -41,10 +41,6 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(tasks_router, prefix="/api/v1/tasks", tags=["tasks"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 
-@app.get("/")
-def read_root():
-    return {"message": "MicroWin Backend is Running"}
-
 # ─── Serve Frontend in Production (Docker) ────────────────
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(STATIC_DIR):
@@ -61,3 +57,7 @@ if os.path.isdir(STATIC_DIR):
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+else:
+    @app.get("/")
+    def read_root():
+        return {"message": "MicroWin Backend is Running"}
