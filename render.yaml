@@ -4,6 +4,10 @@ services:
     env: docker
     plan: free
     healthCheckPath: /api/v1/tasks/health
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    buildArgs:
+      VITE_GOOGLE_CLIENT_ID: "7121665160-qe51dk6m1nf2o39u830q5303d4ehthj0.apps.googleusercontent.com"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -15,6 +19,10 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        value: "7121665160-qe51dk6m1nf2o39u830q5303d4ehthj0.apps.googleusercontent.com"
+      - key: FRONTEND_URL
+        value: "https://microwin.onrender.com"
 
 databases:
   - name: microwin-db

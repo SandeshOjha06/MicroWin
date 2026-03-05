@@ -114,7 +114,6 @@ export function getOAuthLoginUrl(provider: "google"): string {
 }
 
 
-// ─── Tasks API ───────────────────────────────────────────────
 export interface SidebarTask {
     id: number;
     title: string;
