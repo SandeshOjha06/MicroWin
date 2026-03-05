@@ -239,7 +239,7 @@ export default function Dashboard() {
                   { role: "bot", content: data.error }
                 ])
                 setMascotMood("idle")
-                setIsReceiving(false)
+                setIsTyping(false)
                 return
               } else if (data.sidebar_title && data.sidebar_title !== "Unknown Quest") {
                 apiGetUserTasks(user.id).then(setSidebarTasks).catch(() => { })

@@ -164,7 +164,7 @@ export async function apiGetTaskDetails(taskId: number): Promise<TaskDetails> {
     return request<TaskDetails>(`/tasks/${taskId}`);
 }
 
-export async function apiUpdateProfile(userId: number, data: { full_name?: string }): Promise<UserData> {
+export async function apiUpdateProfile(userId: number, data: { full_name?: string; struggle_areas?: string; granularity_level?: number }): Promise<UserData> {
     return request<UserData>(`/users/profile/${userId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
