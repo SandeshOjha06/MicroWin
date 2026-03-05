@@ -3,7 +3,7 @@ uvicorn
 google-genai
 sqlalchemy
 asyncpg
-pydantic
+pydantic[email]
 pydantic-settings
 cryptography
 spacy
