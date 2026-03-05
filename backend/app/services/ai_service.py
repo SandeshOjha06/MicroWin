@@ -30,7 +30,7 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
     Fetches user neuro-profile, customizes the prompt, and streams tasks.
     Includes latency metrics as SSE events to satisfy the <5s requirement.
     """
-    # ─── Latency Timer Start ──────────────────────────────────
+
     t_start = time.perf_counter()
     first_token_emitted = False
 
@@ -77,6 +77,7 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
 
         buffer = ""
         step_counter = 1
+        title_set = False  # Track if AI provided a title
         
         async for chunk in stream:
             if chunk.text:
@@ -89,8 +90,6 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
 
                 buffer += chunk.text
                 
-                # Use regex to find all JSON objects in the buffer
-                # This is much more resilient than line splitting
                 json_objects = re.findall(r'\{[^{}]*\}', buffer)
                 
                 if json_objects:
@@ -106,6 +105,7 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
                                 stmt = update(Task).where(Task.id == task_id).values(title=raw_data["title"])
                                 await db.execute(stmt)
                                 await db.flush()
+                                title_set = True
                                 yield f"data: {{\"sidebar_title\": \"{raw_data['title']}\"}}\n\n"
                                 continue
                             
@@ -146,6 +146,15 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
 
                         except json.JSONDecodeError:
                             continue
+
+        # Fallback title: if AI never provided one, use the instruction
+        if not title_set:
+            fallback_title = safe_instruction[:40].strip()
+            if len(safe_instruction) > 40:
+                fallback_title += "…"
+            stmt = update(Task).where(Task.id == task_id).values(title=fallback_title)
+            await db.execute(stmt)
+            yield f"data: {{\"sidebar_title\": \"{fallback_title}\"}}\n\n"
 
         # Commit all remaining flushed changes
         await db.commit()
