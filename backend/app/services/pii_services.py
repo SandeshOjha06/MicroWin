@@ -1,9 +1,16 @@
 import spacy
 
-# Load the NLP model (ensure you've run: python -m spacy download en_core_web_sm)
-nlp = spacy.load("en_core_web_sm")
+# Lazy-load the NLP model on first use to speed up server startup
+_nlp = None
+
+def _get_nlp():
+    global _nlp
+    if _nlp is None:
+        _nlp = spacy.load("en_core_web_sm")
+    return _nlp
 
 def scrub_pii(text: str) -> str:
+    nlp = _get_nlp()
     doc = nlp(text)
     scrubbed_text = text
     # Masking Persons, Locations, and Organizations

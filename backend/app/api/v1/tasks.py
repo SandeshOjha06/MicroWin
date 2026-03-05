@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter,Depends, HTTPException, status    
 from fastapi.responses import StreamingResponse
 from app.schemas.task import TaskCreate
@@ -27,8 +28,8 @@ async def decompose_task_stream(
     user_id: int, # Ensure this is coming from the request
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. Clean the text
-    safe_text = scrub_pii(task_in.instruction)
+    # 1. Clean the text (run spaCy in thread to avoid blocking event loop)
+    safe_text = await asyncio.to_thread(scrub_pii, task_in.instruction)
 
     # 2. Encrypt AND Decode to string
     # This turns b'gAAAA...' into 'gAAAA...' so the DB doesn't crash

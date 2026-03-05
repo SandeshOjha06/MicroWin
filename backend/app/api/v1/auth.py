@@ -2,6 +2,7 @@
 Auth router: email/password + Google OAuth2
 All endpoints return JWT tokens.
 """
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,9 +94,10 @@ async def signup(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="User with this email already exists.")
 
+    hashed_pw = await asyncio.to_thread(hash_password, user_in.password)
     user = User(
         email=user_in.email,
-        hashed_password=hash_password(user_in.password),
+        hashed_password=hashed_pw,
         auth_provider="email",
         full_name=user_in.full_name,
         granularity_level=3,
@@ -115,7 +117,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user or not user.hashed_password:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if not verify_password(credentials.password, user.hashed_password):
+    if not await asyncio.to_thread(verify_password, credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return _build_token_response(user)
