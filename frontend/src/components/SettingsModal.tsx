@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 
 import { Label } from "@/components/ui/label";
 import { apiUpdateProfile } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -17,6 +18,7 @@ export function SettingsModal({ isOpen, onClose, user, darkMode }: SettingsModal
     const [struggleAreas, setStruggleAreas] = useState("");
     const [granularity, setGranularity] = useState(3);
     const [isLoading, setIsLoading] = useState(false);
+    const { updateUser } = useAuth();
 
     useEffect(() => {
         if (user) {
@@ -30,12 +32,16 @@ export function SettingsModal({ isOpen, onClose, user, darkMode }: SettingsModal
         setIsLoading(true);
         try {
             await apiUpdateProfile(user.id, {
-                // struggle_areas: struggleAreas, // Commented out until backend wrapper is updated or ignored
-
-                // granularity_level: granularity
-
+                struggle_areas: struggleAreas,
+                granularity_level: granularity
             });
-            window.location.reload(); // Reload to refresh context
+
+            // Update the context immediately, preventing full page reload
+            updateUser({
+                struggle_areas: struggleAreas,
+                granularity_level: granularity
+            });
+
         } catch (error) {
             console.error("Failed to save settings", error);
         } finally {

@@ -16,7 +16,9 @@ import {
   PartyPopper,
   Plus,
   Check,
-  Flame
+  Flame,
+  Mic,
+  MicOff
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,6 +65,10 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const isListeningRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const finalTranscriptRef = useRef("")
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [darkMode, setDarkMode] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -225,8 +231,18 @@ export default function Dashboard() {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.latency_ms !== undefined) {
+              if (data.latency_ms) {
                 setLatencyMs(data.latency_ms)
+              } else if (data.error) {
+                setMessages(prev => [
+                  ...prev,
+                  { role: "bot", content: data.error }
+                ])
+                setMascotMood("idle")
+                setIsReceiving(false)
+                return
+              } else if (data.sidebar_title && data.sidebar_title !== "Unknown Quest") {
+                apiGetUserTasks(user.id).then(setSidebarTasks).catch(() => { })
               } else if (data.current_step?.action) {
                 collectedSteps.push({
                   id: data.current_step.step_id || stepCounter,
@@ -332,12 +348,95 @@ export default function Dashboard() {
     if (!editedName.trim() || !user) return
     try {
       await apiUpdateProfile(user.id, { full_name: editedName.trim() })
-      // Reload page to refresh context (simplified approach)
-      window.location.reload()
+      // Update the context immediately, preventing full page reload
+      updateUser({ full_name: editedName.trim() })
     } catch {
       // ignore
     } finally {
       setIsEditingName(false)
+    }
+  }
+
+  useEffect(() => {
+    isListeningRef.current = isListening
+  }, [isListening])
+
+  useEffect(() => {
+    // Initialize SpeechRecognition once
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => setIsListening(true);
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = "";
+        let finalTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          finalTranscriptRef.current += finalTranscript;
+        }
+
+        setInput(finalTranscriptRef.current + interimTranscript);
+      };
+
+      recognition.onerror = (event: any) => {
+        if (event.error === 'no-speech') {
+          return;
+        }
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        if (isListeningRef.current) {
+          try {
+            recognition.start();
+          } catch {
+            // Ignore error if it's already started
+          }
+        } else {
+          setIsListening(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setIsListening(true);
+      finalTranscriptRef.current = input + (input && !input.endsWith(" ") ? " " : "");
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        console.error("Could not start recognition", e);
+      }
     }
   }
 
@@ -490,8 +589,8 @@ export default function Dashboard() {
         />
 
         {/* Chat / Game Area - Centered Layout */}
-        <div className="flex-1 overflow-y-auto px-6 py-8 flex items-center justify-center">
-          <div className="w-full max-w-5xl mx-auto flex gap-6 md:gap-10 flex-col-reverse md:flex-row items-center md:items-start justify-center">
+        <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col">
+          <div className="w-full max-w-5xl mx-auto my-auto flex gap-6 md:gap-10 flex-col-reverse md:flex-row items-center md:items-start justify-center">
 
             {/* Mascot Column (Left on desktop, Bottom on mob) */}
             <div className="flex-shrink-0 flex flex-col items-center mt-4 md:mt-0">
@@ -648,9 +747,20 @@ export default function Dashboard() {
               className={`flex-1 border-0 bg-transparent text-base focus-visible:ring-0 px-4 py-2 ${theme.inputField}`}
               placeholder="Type your next big goal..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value)
+                finalTranscriptRef.current = e.target.value // Keep typing and voice in sync
+              }}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             />
+            <Button
+              onClick={toggleListening}
+              variant="ghost"
+              className={`h-12 w-12 rounded-xl flex-shrink-0 transition-all ${isListening ? "bg-red-500 text-white hover:bg-red-600 animate-pulse" : `${theme.sidebarText} ${theme.sidebarHover}`}`}
+              title="Voice Input"
+            >
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </Button>
             <Button
               onClick={handleSend}
               disabled={!input.trim()}
